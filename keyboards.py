@@ -22,7 +22,7 @@ async def show_main_menu(bot, user_id: int, custom_text: str | None = None):
     chat_id = user_id
     await cleanup_all_messages(bot, user_id, chat_id)
 
-    header = _pad("👋 Привет! Выбери действие:")
+    header = _pad("👋 Эй! Чем займёмся:")
 
     keyboard = [
         [
