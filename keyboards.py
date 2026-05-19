@@ -7,35 +7,46 @@ def btn_menu() -> InlineKeyboardButton:
 
 
 def btn_cancel() -> InlineKeyboardButton:
-    return InlineKeyboardButton("✖️ Отмена", callback_data="go_menu")
+    return InlineKeyboardButton("❌ Отмена", callback_data="go_menu")
+
+
+def _pad(text: str, width: int = 28) -> str:
+    """Дополнить строку справа до нужной ширины."""
+    return text + "ㅤ" * max(0, width - len(text))
 
 
 async def show_main_menu(bot, user_id: int, custom_text: str | None = None):
-    from handlers.session import main_menu_messages
+    from handlers.session import main_menu_messages, user_messages, cleanup_all_messages
+
+    # Сначала удаляем ВСЕ предыдущие сообщения бота
+    chat_id = user_id
+    await cleanup_all_messages(bot, user_id, chat_id)
+
+    header = _pad("👋 Привет! Выбери действие:")
 
     keyboard = [
         [
             InlineKeyboardButton("📋 Списки",      callback_data="open_my_lists"),
-            InlineKeyboardButton("➕ Добавить",    callback_data="newlist_personal"),
+            InlineKeyboardButton("📝 Заметки",      callback_data="open_notes"),
         ],
         [
             InlineKeyboardButton("⏰ Напоминания",  callback_data="open_reminders"),
-            InlineKeyboardButton("➕ Добавить",    callback_data="add_reminder"),
-        ],
-        [
             InlineKeyboardButton("⏱ Таймеры",      callback_data="open_timers"),
-            InlineKeyboardButton("➕ Добавить",    callback_data="add_timer"),
         ],
         [
-            InlineKeyboardButton("💰 Сумма",        callback_data="open_summa"),
-            InlineKeyboardButton("💱 Курс",         callback_data="open_rub"),
+            InlineKeyboardButton("💳 Карты",       callback_data="open_cards"),
+            InlineKeyboardButton("📄 Документы",   callback_data="open_documents"),
         ],
         [
-            InlineKeyboardButton("🔍 Поиск",        callback_data="open_search"),
-            InlineKeyboardButton("🧹 Очистка",      callback_data="do_clean"),
+            InlineKeyboardButton("💰 Сумма",       callback_data="open_summa"),
+            InlineKeyboardButton("🪙 Курс",       callback_data="open_rub"),
+        ],
+        [
+            InlineKeyboardButton("📍 Локации",     callback_data="open_locations"),
+            InlineKeyboardButton("🧹 Очистка",     callback_data="do_clean"),
         ],
     ]
-    text = custom_text or "👋 Привет! Выбери действие:"
+    text = _pad(custom_text) if custom_text else header
     markup = InlineKeyboardMarkup(keyboard)
     old_menu_id = main_menu_messages.get(user_id)
 
