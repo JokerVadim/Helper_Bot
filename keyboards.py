@@ -1,5 +1,9 @@
 """Inline keyboard buttons and main menu."""
+import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from utils import _pad
+
+logger = logging.getLogger(__name__)
 
 
 def btn_menu() -> InlineKeyboardButton:
@@ -10,13 +14,11 @@ def btn_cancel() -> InlineKeyboardButton:
     return InlineKeyboardButton("❌ Отмена", callback_data="go_menu")
 
 
-def _pad(text: str, width: int = 28) -> str:
-    """Дополнить строку справа до нужной ширины."""
-    return text + "ㅤ" * max(0, width - len(text))
-
 
 async def show_main_menu(bot, user_id: int, custom_text: str | None = None):
     from handlers.session import main_menu_messages, user_messages, cleanup_all_messages
+    from db import db_get_unread_errors_count
+    from config import ADMIN_ID
 
     # Сначала удаляем ВСЕ предыдущие сообщения бота
     chat_id = user_id
@@ -30,23 +32,43 @@ async def show_main_menu(bot, user_id: int, custom_text: str | None = None):
             InlineKeyboardButton("📝 Заметки",      callback_data="open_notes"),
         ],
         [
+            InlineKeyboardButton("💳 Карты",       callback_data="open_cards"),
+            InlineKeyboardButton("📁 Файлы",       callback_data="open_documents"),
+        ],
+        [
             InlineKeyboardButton("⏰ Напоминания",  callback_data="open_reminders"),
             InlineKeyboardButton("⏱ Таймеры",      callback_data="open_timers"),
         ],
         [
-            InlineKeyboardButton("💳 Карты",       callback_data="open_cards"),
-            InlineKeyboardButton("📄 Документы",   callback_data="open_documents"),
+            InlineKeyboardButton("📅 Календарь",    callback_data="open_calendar"),
+            InlineKeyboardButton("📊 Сводка",       callback_data="open_summary"),
         ],
         [
             InlineKeyboardButton("💰 Сумма",       callback_data="open_summa"),
-            InlineKeyboardButton("🪙 Курс",       callback_data="open_rub"),
+            InlineKeyboardButton("🏦 Курс",       callback_data="open_rub"),
         ],
         [
             InlineKeyboardButton("📍 Локации",     callback_data="open_locations"),
+            InlineKeyboardButton("🌤 Погода",      callback_data="open_weather_menu"),
+        ],
+        [
+            InlineKeyboardButton("🎂 Дни рождения", callback_data="open_birthdays"),
+            InlineKeyboardButton("📦 Расходники",  callback_data="open_supplies"),
+        ],
+        [
+            InlineKeyboardButton("🎮 Игры",        callback_data="open_games"),
             InlineKeyboardButton("🧹 Очистка",     callback_data="do_clean"),
         ],
     ]
-    text = _pad(custom_text) if custom_text else header
+
+    # ── Бейдж ошибок для админа ──
+    if user_id == ADMIN_ID:
+        unread = await db_get_unread_errors_count()
+        if unread > 0:
+            keyboard.append([
+                InlineKeyboardButton(f"⚠️ Ошибки: {unread} непрочитанных", callback_data="admin_view_errors")
+            ])
+    text = _pad(custom_text) if custom_text is not None else header
     markup = InlineKeyboardMarkup(keyboard)
     old_menu_id = main_menu_messages.get(user_id)
 
@@ -61,7 +83,6 @@ async def show_main_menu(bot, user_id: int, custom_text: str | None = None):
             )
             return
         except Exception as e:
-            from handlers.session import logger
             logger.debug(f"Не удалось обновить старое меню {old_menu_id}: {e}")
             main_menu_messages.pop(user_id, None)
 
@@ -73,6 +94,6 @@ async def show_main_menu(bot, user_id: int, custom_text: str | None = None):
             reply_markup=markup
         )
         main_menu_messages[user_id] = msg.message_id
+        user_messages.setdefault(user_id, []).append(msg.message_id)
     except Exception as e:
-        from handlers.session import logger
         logger.error(f"Не удалось показать меню: {e}")

@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem \"F:\\\\Projects\\\\bot\" -Filter *.py -File)",
+      "Bash(Select-Object -ExpandProperty Name)",
+      "Bash(python -m py_compile bot.py ai.py db.py keyboards.py handlers/callbacks.py handlers/commands.py handlers/reminders.py handlers/session.py utils/time_utils.py)",
+      "Bash(python -m py_compile bot.py handlers/reminders.py handlers/callbacks.py db.py ai.py)",
+      "Bash(python -m py_compile handlers/callbacks.py)",
+      "Bash(python -m py_compile handlers/callbacks.py handlers/reminders.py)",
+      "Bash(python -m py_compile db.py handlers/commands.py handlers/callbacks.py bot.py)",
+      "Bash(python -m py_compile handlers/commands.py)",
+      "Bash(python -m py_compile handlers/commands.py handlers/callbacks.py)",
+      "Bash(python -m py_compile handlers/callbacks.py handlers/commands.py)",
+      "Bash(python -m py_compile handlers/callbacks.py utils/emoji_utils.py)",
+      "Bash(python -m py_compile db.py ai.py bot.py handlers/callbacks.py)",
+      "Bash(python -m py_compile handlers/callbacks.py update_emojis.py)",
+      "Bash(envs/Scripts/python.exe -m py_compile update_emojis.py)",
+      "Bash(envs/Scripts/python.exe -m py_compile db.py bot.py keyboards.py)",
+      "Bash(python *)",
+      "Bash(.\\\\envs\\\\Scripts\\\\python *)"
+    ]
+  }
+}

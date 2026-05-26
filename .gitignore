@@ -18,3 +18,14 @@ envs/
 venv/
 .DS_Store
 Thumbs.db
+.aider*
+
+# Отладочные артефакты
+debug_*.py
+test_*.db
+test_*.db*
+tests/.tmp/
+tests/*.db*
+*.html
+nul
+backups/

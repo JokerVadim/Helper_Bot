@@ -1,8 +1,17 @@
-python-telegram-bot[job-queue]
-gspread
-oauth2client
-requests
-groq
-tavily-python
-python-dotenv
-cloudscraper
+# Telegram Bot
+python-telegram-bot[job-queue]==21.6
+
+# AI providers
+groq==1.2.0
+
+# Search
+tavily-python==0.7.23
+duckduckgo_search==6.2.12
+
+# HTTP
+requests==2.33.1
+httpx==0.28.1
+cloudscraper==1.2.71
+
+# Utils
+python-dotenv==1.2.2

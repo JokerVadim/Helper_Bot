@@ -1,5 +1,5 @@
 """Handlers package."""
-from handlers.session import (
+from handlers.session import (  # noqa: F401
     processes,
     reminders,
     reminder_counter,
@@ -11,13 +11,11 @@ from handlers.session import (
     _store_memory_reminder,
     _remove_memory_reminder,
 )
-from handlers.reminders import (
+from handlers.reminders import (  # noqa: F401
     next_reminder_id,
     _schedule_reminder,
     _cancel_reminder_job,
     _find_memory_reminder,
-    _remove_memory_reminder,
-    _store_memory_reminder,
     _row_to_reminder,
     reminder_callback,
     show_reminders_ui,
