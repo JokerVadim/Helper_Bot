@@ -23,6 +23,32 @@ from utils import md, _pad
 logger = logging.getLogger(__name__)
 
 _notified_birthdays_today: set = set()
+_bday_preview: dict[int, dict | None] = {}
+_bday_preview_task: dict[int, asyncio.Task | None] = {}
+
+
+def _set_bday_preview(user_id: int, bday: dict | None):
+    if bday:
+        _bday_preview[user_id] = {"name": bday["name"], "birth_date": bday["birth_date"]}
+    else:
+        _bday_preview.pop(user_id, None)
+
+
+async def _auto_hide_bday_preview(user_id: int, chat_id: int, message_id: int, bot):
+    """Скрыть превью дня рождения через 5 секунд."""
+    await asyncio.sleep(5)
+    if user_id in _bday_preview:
+        _bday_preview.pop(user_id, None)
+        _bday_preview_task[user_id] = None
+        text, keyboard = await _build_birthdays_content(user_id)
+        try:
+            await bot.edit_message_text(
+                text, parse_mode="Markdown",
+                chat_id=chat_id, message_id=message_id,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        except Exception:
+            pass
 
 # ─── Action Mode ──────────────────────────────────────────────────────────────
 _bday_action_modes: dict[int, str] = {}
@@ -103,7 +129,7 @@ def _sort_birthdays(birthdays: list[dict]) -> list[dict]:
 
 
 def _calc_age(birth_date: str) -> int | None:
-    """Вычисляет возраст, который исполнится в ближайший день рождения. Если год не указан — None."""
+    """Вычисляет текущий возраст. Если год не указан — None."""
     parts = birth_date.split(".")
     if len(parts) < 3:
         return None
@@ -111,8 +137,8 @@ def _calc_age(birth_date: str) -> int | None:
         bd = datetime.strptime(birth_date, "%d.%m.%Y")
         today = datetime.now()
         age = today.year - bd.year
-        if (today.month, today.day) > (bd.month, bd.day):
-            age += 1
+        if (today.month, today.day) < (bd.month, bd.day):
+            age -= 1
         return age
     except (ValueError, IndexError):
         return None
@@ -167,20 +193,26 @@ def _format_bday_detail(name: str, birth_date: str) -> str:
     parts = birth_date.split(".")
     day, month = int(parts[0]), int(parts[1])
     month_name = MONTH_NAMES.get(month, "")
+    lines = [f"🎂 *{md(name)}*", f"📅 {day} {month_name}"]
 
-    text = f"🎂 *{md(name)}*\n\n📅 {day} {month_name}"
+    age = _calc_age(birth_date) if len(parts) >= 3 else None
+    days = _days_until_next_birthday(birth_date)
+    if days is None:
+        days = 0
 
-    if len(parts) >= 3 and len(parts[2]) == 4:
-        year = parts[2]
-        age = _calc_age(birth_date)
-        if age is not None:
-            text += f" {year} года\nВозраст: *{age} лет*"
+    if age is not None:
+        lines.append(f"сейчас *{age}* лет")
+        if days == 0:
+            lines.append("🎉 *Сегодня!*")
         else:
-            text += f" {year} года"
+            lines.append(f"через {days} дн., исполнится *{age + 1}*")
     else:
-        text += "\n_Год не указан_"
+        if days == 0:
+            lines.append("🎉 *Сегодня!*")
+        else:
+            lines.append(f"через {days} дн.")
 
-    return _pad(text)
+    return _pad("\n".join(lines))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -321,21 +353,21 @@ async def check_birthdays(app):
 # UI: Show birthdays list (like reminders UI)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-async def _show_birthdays_list(query, custom_text: str = None, bot=None, user_id: int = None):
-    """Показать список дней рождений. UI как у напоминаний."""
-    user = query.from_user if query else None
-    uid = user.id if user else user_id
-
-    birthdays = await db_get_birthdays( uid)
+async def _build_birthdays_content(user_id: int, custom_text: str = None) -> tuple[str, list]:
+    """Построить текст и клавиатуру списка дней рождения."""
+    birthdays = await db_get_birthdays(user_id)
     sorted_bdays = _sort_birthdays(birthdays)
-    notify_time = await db_get_birthday_time( uid)
-    action_mode = _get_bday_action_mode(uid)
+    notify_time = await db_get_birthday_time(user_id)
+    action_mode = _get_bday_action_mode(user_id)
     keyboard = []
+
+    preview = _bday_preview.get(user_id)
 
     if not sorted_bdays:
         text = _pad("🎂 *Дни рождения*\n\nПока нет сохранённых дней рождения.")
     else:
         for b in sorted_bdays:
+            is_active = preview and preview["name"] == b["name"] and preview["birth_date"] == b["birth_date"]
             if action_mode == "delete":
                 label = _format_bday_short(b['name'], b['birth_date']).replace("🎂", "🗑", 1)
                 keyboard.append([InlineKeyboardButton(label, callback_data=f"delbday_{b['id']}")])
@@ -347,9 +379,16 @@ async def _show_birthdays_list(query, custom_text: str = None, bot=None, user_id
                 keyboard.append([InlineKeyboardButton(label, callback_data=f"editbdaydate_{b['id']}")])
             else:
                 label = _format_bday_short(b["name"], b["birth_date"])
+                prefix = "👁 " if is_active else ""
+                if is_active:
+                    label = f"{prefix}{label}"
                 keyboard.append([InlineKeyboardButton(label, callback_data=f"viewbday_{b['id']}")])
 
         text = "🎂 *Дни рождения:*"
+
+    if preview:
+        detail = _format_bday_detail(preview["name"], preview["birth_date"])
+        text = detail
 
     delete_lbl = "✅ 🗑 Удалить" if action_mode == "delete" else "🗑 Удалить"
     name_lbl = "✅ ✏️ Имя" if action_mode == "edit_name" else "✏️ Имя"
@@ -369,6 +408,16 @@ async def _show_birthdays_list(query, custom_text: str = None, bot=None, user_id
 
     if custom_text:
         text = custom_text
+
+    return text, keyboard
+
+
+async def _show_birthdays_list(query, custom_text: str = None, bot=None, user_id: int = None):
+    """Показать список дней рождений. UI как у напоминаний."""
+    user = query.from_user if query else None
+    uid = user.id if user else user_id
+
+    text, keyboard = await _build_birthdays_content(uid, custom_text)
 
     if bot and user_id:
         msg = await bot.send_message(chat_id=user_id, text=text, parse_mode="Markdown",
@@ -409,15 +458,30 @@ async def cb_add_birthday(query, context, data, user, chat_id, bot):
 
 @register_callback_handler("viewbday_")
 async def cb_view_birthday(query, context, data, user, chat_id, bot):
-    """Показать детали дня рождения в всплывашке."""
+    """Показать детали дня рождения (как превью карты, с авто-скрытием)."""
     bday_id = int(data.split("_")[1])
-    birthdays = await db_get_birthdays( user.id)
+    birthdays = await db_get_birthdays(user.id)
     bday = next((b for b in birthdays if b["id"] == bday_id), None)
     if not bday:
         await query.answer("❌ Не найдено")
         return
-    detail = _format_bday_detail(bday["name"], bday["birth_date"])
-    await query.answer(detail, show_alert=True)
+
+    current = _bday_preview.get(user.id)
+    if current and current["name"] == bday["name"] and current["birth_date"] == bday["birth_date"]:
+        _set_bday_preview(user.id, None)
+        if _bday_preview_task.get(user.id):
+            _bday_preview_task[user.id].cancel()
+            _bday_preview_task[user.id] = None
+    else:
+        _set_bday_preview(user.id, bday)
+        if _bday_preview_task.get(user.id):
+            _bday_preview_task[user.id].cancel()
+        _bday_preview_task[user.id] = asyncio.create_task(
+            _auto_hide_bday_preview(user.id, chat_id, query.message.message_id, bot)
+        )
+
+    text, keyboard = await _build_birthdays_content(user.id)
+    await query.edit_message_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 @register_callback_handler("delbday_")

@@ -87,7 +87,7 @@ MONTH_NAMES = {
 
 
 def _calc_age(birth_date: str) -> int | None:
-    """Вычислить возраст, который исполнится в ближайший день рождения."""
+    """Вычислить текущий возраст."""
     parts = birth_date.split(".")
     if len(parts) < 3:
         return None
@@ -95,8 +95,8 @@ def _calc_age(birth_date: str) -> int | None:
         bd = datetime.strptime(birth_date, "%d.%m.%Y")
         today = datetime.now()
         age = today.year - bd.year
-        if (today.month, today.day) > (bd.month, bd.day):
-            age += 1
+        if (today.month, today.day) < (bd.month, bd.day):
+            age -= 1
         return age
     except (ValueError, IndexError):
         return None
